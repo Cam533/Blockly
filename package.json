@@ -12,7 +12,8 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "upload:plots": "tsx scripts/upload-plots.ts",
-    "clear:plots": "tsx scripts/clear-plots.ts"
+    "clear:plots": "tsx scripts/clear-plots.ts",
+    "populate:comments": "tsx scripts/populate-comments.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.3",

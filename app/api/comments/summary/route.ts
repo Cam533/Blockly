@@ -1,8 +1,135 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from "@anthropic-ai/sdk"
+import { prisma } from '@/lib/prisma'
 
 
 type Theme = { theme: string; count: number }
+
+/**
+ * GET /api/comments/summary?plotId=123
+ * Fetches comments for a plot and generates a 2-sentence summary
+ * Returns { summary: string }
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const plotId = searchParams.get('plotId')
+
+    if (!plotId) {
+      return NextResponse.json({ error: 'plotId is required' }, { status: 400 })
+    }
+
+    // Fetch comments for this plot
+    const comments = await (prisma as any).comment.findMany({
+      where: {
+        plotId: parseInt(plotId),
+      },
+      select: {
+        content: true,
+        upvote: true,
+        downvote: true,
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    })
+
+    if (comments.length === 0) {
+      return NextResponse.json({ 
+        summary: 'No comments yet for this plot. Be the first to share your ideas!' 
+      })
+    }
+
+    // Get plot info for context
+    const plot = await (prisma as any).plot.findUnique({
+      where: { id: parseInt(plotId) },
+      select: {
+        address: true,
+        vacantFlag: true,
+      },
+    })
+
+    // Sort comments by score (upvote - downvote) to prioritize popular suggestions
+    const sortedComments = comments.sort((a: any, b: any) => {
+      const scoreA = a.upvote - a.downvote
+      const scoreB = b.upvote - b.downvote
+      return scoreB - scoreA
+    })
+
+    // Take top comments (up to 20) for context
+    const topComments = sortedComments.slice(0, 20).map((c: any) => c.content)
+
+    // Generate summary using Claude
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    
+    const addressContext = plot?.address ? ` at ${plot.address}` : ''
+    const prompt = `You are analyzing community feedback for a vacant plot${addressContext} in Philadelphia. 
+
+Here are the comments from residents about what they'd like to see built here:
+${topComments.map((c: string, i: number) => `${i + 1}. ${c}`).join('\n')}
+
+Based on these comments, write exactly 2 sentences summarizing what should be done at this plot. Be specific and actionable. Focus on the most popular and repeated suggestions. Write in a clear, professional tone suitable for city planning.
+
+Return ONLY the 2 sentences, nothing else.`
+
+    try {
+      const response = await client.messages.create({
+        model: 'claude-3-haiku-20240307',
+        max_tokens: 200,
+        messages: [
+          { role: 'user', content: prompt }
+        ],
+      })
+
+      const firstContent = response.content[0]
+      const summary = firstContent && 'text' in firstContent
+        ? firstContent.text.trim()
+        : 'Unable to generate summary at this time.'
+
+      return NextResponse.json({ summary })
+    } catch (llmError) {
+      console.error('LLM error:', llmError)
+      // Fallback to simple summary
+      const fallbackSummary = generateSimpleSummary(topComments, plot?.address)
+      return NextResponse.json({ summary: fallbackSummary })
+    }
+  } catch (error) {
+    console.error('[summary GET] error:', error)
+    return NextResponse.json({ error: 'Failed to generate summary' }, { status: 500 })
+  }
+}
+
+function generateSimpleSummary(comments: string[], address?: string | null): string {
+  // Simple keyword-based summary
+  const allText = comments.join(' ').toLowerCase()
+  
+  let suggestions: string[] = []
+  if (allText.includes('park') || allText.includes('playground') || allText.includes('green')) {
+    suggestions.push('a park or green space')
+  }
+  if (allText.includes('cafe') || allText.includes('restaurant') || allText.includes('food')) {
+    suggestions.push('a cafe or restaurant')
+  }
+  if (allText.includes('gym') || allText.includes('fitness') || allText.includes('exercise')) {
+    suggestions.push('a fitness center')
+  }
+  if (allText.includes('garden') || allText.includes('community garden')) {
+    suggestions.push('a community garden')
+  }
+  if (allText.includes('housing') || allText.includes('apartment') || allText.includes('residential')) {
+    suggestions.push('affordable housing')
+  }
+  if (allText.includes('community center') || allText.includes('meeting')) {
+    suggestions.push('a community center')
+  }
+
+  if (suggestions.length === 0) {
+    suggestions = ['community development']
+  }
+
+  const location = address ? ` at ${address}` : ' here'
+  return `Based on community feedback, residents would like to see ${suggestions.slice(0, 2).join(' or ')}${location}. The most popular suggestions focus on improving neighborhood amenities and quality of life.`
+}
 
 /**
  * POST /api/comments/summary
@@ -65,7 +192,8 @@ export async function POST(request: NextRequest) {
         ],
     })
 
-    modelOutput = res.content?.[0]?.text ?? ""
+    const firstContent = res.content?.[0]
+    modelOutput = (firstContent && 'text' in firstContent) ? firstContent.text : ""
     } catch (err) {
     console.error("LLM call failed:", err)
     llmCalled = false

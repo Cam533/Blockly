@@ -40,10 +40,37 @@ export default function CommentPanel({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [localComments, setLocalComments] = useState<Comment[]>(comments)
+  const [summary, setSummary] = useState<string | null>(null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
 
   useEffect(() => {
     setLocalComments(comments)
   }, [comments])
+
+  useEffect(() => {
+    // Fetch summary when plot changes or comments change
+    const fetchSummary = async () => {
+      if (comments.length === 0) {
+        setSummary(null)
+        return
+      }
+
+      setSummaryLoading(true)
+      try {
+        const response = await fetch(`/api/comments/summary?plotId=${plot.id}`)
+        if (response.ok) {
+          const data = await response.json()
+          setSummary(data.summary)
+        }
+      } catch (err) {
+        console.error('Error fetching summary:', err)
+      } finally {
+        setSummaryLoading(false)
+      }
+    }
+
+    fetchSummary()
+  }, [plot.id, comments.length])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -117,18 +144,29 @@ export default function CommentPanel({
     <div className="absolute top-4 right-4 w-96 bg-white shadow-2xl rounded-xl z-[1000] max-h-[calc(100vh-120px)] flex flex-col border border-gray-100">
       <div className="p-5 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
         <div className="flex justify-between items-start">
-          <div>
+          <div className="flex-1">
             <h2 className="text-lg font-bold text-gray-900 mb-2">Plot Details</h2>
             <p className="text-sm text-gray-700 mb-1 font-medium">{plot.address || 'No address'}</p>
             {plot.vacantFlag && (
-              <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+              <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full mb-3">
                 {plot.vacantFlag}
               </span>
+            )}
+            {summaryLoading && (
+              <div className="mt-3 p-3 bg-white rounded-lg border border-gray-200">
+                <p className="text-sm text-gray-500">Generating summary...</p>
+              </div>
+            )}
+            {summary && !summaryLoading && (
+              <div className="mt-3 p-3 bg-white rounded-lg border border-blue-200 shadow-sm">
+                <h3 className="text-xs font-semibold text-blue-900 mb-1 uppercase tracking-wide">AI Summary</h3>
+                <p className="text-sm text-gray-700 leading-relaxed">{summary}</p>
+              </div>
             )}
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-2xl leading-none transition-colors w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100"
+            className="text-gray-400 hover:text-gray-600 text-2xl leading-none transition-colors w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100 ml-2"
           >
             ×
           </button>
