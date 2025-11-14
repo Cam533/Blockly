@@ -1,0 +1,49 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  username  String   @unique
+  email     String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  posts    Post[]
+  comments Comment[]
+  
+  @@map("users")
+}
+
+model Post {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @map("user_id")
+  title       String
+  description String?
+  coordinates Json?    // plot coordinates
+  createdAt   DateTime @default(now()) @map("created_at")
+  
+  user     User      @relation(fields: [userId], references: [id])
+  comments Comment[]
+  
+  @@map("posts")
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  postId    Int      @map("post_id")
+  userId    Int      @map("user_id")
+  content   String
+  embedding Unsupported("vector(1024)")?
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  post Post @relation(fields: [postId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+  
+  @@map("comments")
+}
+
