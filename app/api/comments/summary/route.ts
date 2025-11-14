@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
 Here are the comments from residents about what they'd like to see built here${neighborContext}:
 ${topComments.map((c: string, i: number) => `${i + 1}. ${c}`).join('\n')}
 
-Based on these comments, write exactly 2 sentences summarizing what should be done at this plot. Be specific and actionable. Focus on the most popular and repeated suggestions. Write in a clear, professional tone suitable for city planning.
+Based on these comments, write exactly 2 sentences summarizing what residents are asking for. Start with "Residents ask for..." and then summarize the main requests in a natural, flowing way. Do not just list or restate the comments verbatim - instead, synthesize them into a cohesive summary. Focus on the most popular and repeated suggestions. Write in a clear, professional tone suitable for city planning.
 
 Return ONLY the 2 sentences, nothing else.`
 
@@ -228,7 +228,7 @@ export async function POST(request: NextRequest) {
     const neighborContext = neighborCommentTexts.length > 0 
       ? ` (including ${neighborCommentTexts.length} comment${neighborCommentTexts.length !== 1 ? 's' : ''} from nearby plots)` 
       : ''
-    const basePrompt = `You are an assistant that summarizes community feedback for city planning.\n\nContext: these comments are for plot_id: ${plotId ?? 'UNKNOWN'}${neighborContext}.\n\nRepresentative comments:\n${sampleCommentsText}\n\nPlease produce a single valid JSON object (no prose) with the following keys:\n- summary: a 3-4 sentence summary of the main concerns\n- themes: an array of objects {"theme": string, "count": number} describing major themes and counts\n- representativeComments: an array of the top ${topK} representative comments\n\nReturn ONLY a valid JSON object and nothing else.`
+    const basePrompt = `You are an assistant that summarizes community feedback for city planning.\n\nContext: these comments are for plot_id: ${plotId ?? 'UNKNOWN'}${neighborContext}.\n\nRepresentative comments:\n${sampleCommentsText}\n\nPlease produce a single valid JSON object (no prose) with the following keys:\n- summary: a 3-4 sentence summary starting with "Residents ask for..." that synthesizes the main requests. Do not just list or restate comments verbatim - instead, summarize them naturally into a cohesive narrative.\n- themes: an array of objects {"theme": string, "count": number} describing major themes and counts\n- representativeComments: an array of the top ${topK} representative comments\n\nReturn ONLY a valid JSON object and nothing else.`
 
     // Call Anthropic (try Responses API first, then completions/complete)
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
