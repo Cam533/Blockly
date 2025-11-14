@@ -13,7 +13,8 @@
     "db:studio": "prisma studio",
     "upload:plots": "tsx scripts/upload-plots.ts",
     "clear:plots": "tsx scripts/clear-plots.ts",
-    "populate:comments": "tsx scripts/populate-comments.ts"
+    "populate:comments": "tsx scripts/populate-comments.ts",
+    "populate:neighbors": "tsx scripts/populate-neighbors.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.3",

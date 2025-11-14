@@ -40,8 +40,18 @@ model Plot {
   createdAt         DateTime  @default(now()) @map("created_at")
   
   comments  Comment[]
+  neighbors Neighbors?
   
   @@map("plots")
+}
+
+model Neighbors {
+  id         Int   @id // This matches the plot id
+  neighborIds Int[] // Array of plot ids for the top 10 nearest neighbors
+  
+  plot Plot @relation(fields: [id], references: [id], onDelete: Cascade)
+  
+  @@map("neighbors")
 }
 
 model Comment {

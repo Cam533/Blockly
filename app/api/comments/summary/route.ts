@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch comments for this plot
-    const comments = await (prisma as any).comment.findMany({
+    const plotComments = await (prisma as any).comment.findMany({
       where: {
         plotId: parseInt(plotId),
       },
@@ -34,9 +34,43 @@ export async function GET(request: NextRequest) {
       },
     })
 
+    // Fetch neighbors for this plot (with error handling)
+    let neighborComments: any[] = []
+    try {
+      const neighbors = await (prisma as any).neighbors.findUnique({
+        where: { id: parseInt(plotId) },
+        select: {
+          neighborIds: true,
+        },
+      })
+
+      // Fetch comments from neighbor plots
+      if (neighbors && neighbors.neighborIds && neighbors.neighborIds.length > 0) {
+        neighborComments = await (prisma as any).comment.findMany({
+          where: {
+            plotId: { in: neighbors.neighborIds },
+          },
+          select: {
+            content: true,
+            upvote: true,
+            downvote: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        })
+      }
+    } catch (neighborError) {
+      // If neighbors table doesn't exist or query fails, just continue without neighbor comments
+      console.warn('Could not fetch neighbor comments:', neighborError)
+    }
+
+    // Combine plot comments and neighbor comments
+    const comments = [...plotComments, ...neighborComments]
+
     if (comments.length === 0) {
       return NextResponse.json({ 
-        summary: 'No comments yet for this plot. Be the first to share your ideas!' 
+        summary: 'No comments yet for this plot or its nearby plots. Be the first to share your ideas!' 
       })
     }
 
@@ -63,9 +97,12 @@ export async function GET(request: NextRequest) {
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     
     const addressContext = plot?.address ? ` at ${plot.address}` : ''
+    const neighborContext = neighborComments.length > 0 
+      ? ` (including ${neighborComments.length} comment${neighborComments.length !== 1 ? 's' : ''} from nearby plots)` 
+      : ''
     const prompt = `You are analyzing community feedback for a vacant plot${addressContext} in Philadelphia. 
 
-Here are the comments from residents about what they'd like to see built here:
+Here are the comments from residents about what they'd like to see built here${neighborContext}:
 ${topComments.map((c: string, i: number) => `${i + 1}. ${c}`).join('\n')}
 
 Based on these comments, write exactly 2 sentences summarizing what should be done at this plot. Be specific and actionable. Focus on the most popular and repeated suggestions. Write in a clear, professional tone suitable for city planning.
@@ -150,28 +187,48 @@ export async function POST(request: NextRequest) {
     const plotId = body.plot_id ?? body.plotId ?? null
     const topK = Number(body.topK ?? 3)
     const debug = Boolean(body.debug === true)
-    const mock = Boolean(body.mock === true)
 
-    // Build comment texts for prompt
-    const commentTexts = commentsArray.length > 0 ? commentsArray.map((c) => String(c.content ?? c.text ?? '')) : topComments
+    // Fetch neighbor comments if plotId is provided
+    let neighborCommentTexts: string[] = []
+    if (plotId) {
+      try {
+        const neighbors = await (prisma as any).neighbors.findUnique({
+          where: { id: parseInt(String(plotId)) },
+          select: {
+            neighborIds: true,
+          },
+        })
 
-    if (mock) {
-      const sample = {
-        summary: 'Residents are mainly concerned about traffic and pedestrian safety, poor lighting at night, and parking pressures that affect local businesses. Repeated comments call for better crosswalk timing, improved street lighting, and measures to reduce through-traffic. Short-term interventions could address lighting and signal timing while longer-term work could add greenspace and loading zones.',
-        recommendations: [
-          'Adjust signal timing and add pedestrian-first crossing phases at the main intersection to improve safety for seniors and children.',
-          'Install targeted street lighting and visibility improvements along poorly lit corridors like Maple.',
-          'Create designated loading/delivery zones and implement time-limited parking to reduce circling and improve access for local businesses.'
-        ],
-        
-        representativeComments: topComments.slice(0, topK),
+        if (neighbors && neighbors.neighborIds && neighbors.neighborIds.length > 0) {
+          const neighborComments = await (prisma as any).comment.findMany({
+            where: {
+              plotId: { in: neighbors.neighborIds },
+            },
+            select: {
+              content: true,
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+          })
+          neighborCommentTexts = neighborComments.map((c: any) => String(c.content ?? ''))
+        }
+      } catch (neighborError) {
+        // If neighbors table doesn't exist or query fails, just continue without neighbor comments
+        console.warn('Could not fetch neighbor comments:', neighborError)
       }
-      return NextResponse.json(debug ? { ...sample, _debug: { llmCalled: false, usedModel: null } } : sample)
     }
 
+    // Build comment texts for prompt (combine plot comments and neighbor comments)
+    const plotCommentTexts = commentsArray.length > 0 ? commentsArray.map((c) => String(c.content ?? c.text ?? '')) : topComments
+    const commentTexts = [...plotCommentTexts, ...neighborCommentTexts]
+
     // Construct a strict prompt asking for JSON only
-    const sampleCommentsText = (topComments.length > 0 ? topComments : commentTexts).slice(0, 50).map((c, i) => `${i + 1}. ${c}`).join('\n')
-    const basePrompt = `You are an assistant that summarizes community feedback for city planning.\n\nContext: these comments are for plot_id: ${plotId ?? 'UNKNOWN'}.\n\nRepresentative comments:\n${sampleCommentsText}\n\nPlease produce a single valid JSON object (no prose) with the following keys:\n- summary: a 3-4 sentence summary of the main concerns\n- recommendations: an array of exactly three short (1-2 sentence) actionable interventions a city planner could implement\n- themes: an array of objects {"theme": string, "count": number} describing major themes and counts\n- representativeComments: an array of the top ${topK} representative comments\n\nReturn ONLY a valid JSON object and nothing else.`
+    const sampleCommentsText = commentTexts.slice(0, 50).map((c, i) => `${i + 1}. ${c}`).join('\n')
+    const neighborContext = neighborCommentTexts.length > 0 
+      ? ` (including ${neighborCommentTexts.length} comment${neighborCommentTexts.length !== 1 ? 's' : ''} from nearby plots)` 
+      : ''
+    const basePrompt = `You are an assistant that summarizes community feedback for city planning.\n\nContext: these comments are for plot_id: ${plotId ?? 'UNKNOWN'}${neighborContext}.\n\nRepresentative comments:\n${sampleCommentsText}\n\nPlease produce a single valid JSON object (no prose) with the following keys:\n- summary: a 3-4 sentence summary of the main concerns\n- themes: an array of objects {"theme": string, "count": number} describing major themes and counts\n- representativeComments: an array of the top ${topK} representative comments\n\nReturn ONLY a valid JSON object and nothing else.`
 
     // Call Anthropic (try Responses API first, then completions/complete)
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -212,22 +269,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // If parsed JSON contains recommendations, return it
-    if (parsed && Array.isArray(parsed.recommendations) && parsed.recommendations.length > 0) {
+    // If parsed JSON is valid, return it
+    if (parsed && parsed.summary) {
       const out = {
         summary: parsed.summary ?? '',
-        recommendations: parsed.recommendations.slice(0, 3),
         representativeComments: parsed.representativeComments ?? topComments.slice(0, topK),
       }
       return NextResponse.json(debug ? { ...out, _debug: { llmCalled, usedModel, modelOutputSnippet: String(modelOutput).slice(0, 200) } } : out)
     }
 
     // Fallback heuristics
-  const themes = simpleThemes(commentTexts)
-  const recommendations = generateHeuristicRecommendations(themes).slice(0, 3)
+    const themes = simpleThemes(commentTexts)
     const summary = parsed?.summary ?? simpleSummary(commentTexts)
     const representativeComments = topComments.length > 0 ? topComments.slice(0, topK) : commentTexts.slice(0, topK)
-  const fallback = { summary, recommendations, representativeComments }
+    const fallback = { summary, representativeComments }
     return NextResponse.json(debug ? { ...fallback, _debug: { llmCalled, usedModel, modelOutputSnippet: String(modelOutput).slice(0, 200) } } : fallback)
   } catch (error) {
     console.error('[summary] unexpected error', error)
