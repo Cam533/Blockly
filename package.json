@@ -10,7 +10,9 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "upload:plots": "tsx scripts/upload-plots.ts",
+    "clear:plots": "tsx scripts/clear-plots.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0",
@@ -24,6 +26,7 @@
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "prisma": "^5.19.0",
+    "tsx": "^4.7.0",
     "typescript": "^5"
   }
 }
