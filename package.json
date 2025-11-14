@@ -10,20 +10,26 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "upload:plots": "tsx scripts/upload-plots.ts",
+    "clear:plots": "tsx scripts/clear-plots.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.3",
     "@prisma/client": "^5.19.0",
+    "leaflet": "^1.9.4",
     "next": "14.2.0",
     "react": "^18.3.0",
-    "react-dom": "^18.3.0"
+    "react-dom": "^18.3.0",
+    "react-leaflet": "^4.2.1"
   },
   "devDependencies": {
+    "@types/leaflet": "^1.9.8",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "prisma": "^5.19.0",
+    "tsx": "^4.7.0",
     "typescript": "^5"
   }
 }

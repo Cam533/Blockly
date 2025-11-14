@@ -13,36 +13,48 @@ model User {
   email     String   @unique
   createdAt DateTime @default(now()) @map("created_at")
   
-  posts    Post[]
   comments Comment[]
   
   @@map("users")
 }
 
-model Post {
-  id          Int      @id @default(autoincrement())
-  userId      Int      @map("user_id")
-  title       String
-  description String?
-  coordinates Json?    // plot coordinates
-  createdAt   DateTime @default(now()) @map("created_at")
+model Plot {
+  id                Int       @id @default(autoincrement())
+  objectid          Int?      @unique
+  longitude         Float?    // Longitude (WGS84)
+  latitude          Float?    // Latitude (WGS84)
+  address           String?
+  owner1            String?
+  owner2            String?
+  bldgDesc          String?   @map("bldg_desc")
+  opaId             String?   @map("opa_id")
+  lniAddressKey     String?   @map("lniaddresskey")
+  councilDistrict   String?   @map("councildistrict")
+  zoningBaseDistrict String?  @map("zoningbasedistrict")
+  zipcode           String?
+  landRank          Float?    @map("land_rank")
+  buildRank         Float?    @map("build_rank")
+  vacantFlag        String?   @map("vacant_flag")
+  vacantRank        Float?    @map("vacant_rank")
+  dateUpdate        DateTime? @map("date_update")
+  createdAt         DateTime  @default(now()) @map("created_at")
   
-  user     User      @relation(fields: [userId], references: [id])
-  comments Comment[]
+  comments  Comment[]
   
-  @@map("posts")
+  @@map("plots")
 }
 
 model Comment {
   id        Int      @id @default(autoincrement())
-  postId    Int      @map("post_id")
-  userId    Int      @map("user_id")
+  plotId    Int      @map("plot_id")  // Database column name
+  userId    Int      @map("user_id")  // Database column name
   content   String
-  embedding Unsupported("vector(1024)")?
   createdAt DateTime @default(now()) @map("created_at")
+  upvote    Int      @default(0)
+  downvote  Int      @default(0)
   
-  post Post @relation(fields: [postId], references: [id])
-  user User @relation(fields: [userId], references: [id])
+  plot Plot @relation(fields: [plotId], references: [id])  // Links to Plot.id
+  user User @relation(fields: [userId], references: [id])  // Links to User.id
   
   @@map("comments")
 }
