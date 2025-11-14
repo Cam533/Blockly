@@ -1,8 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import { setUser } from '@/lib/auth'
 
 export default function Home() {
+  const router = useRouter()
   const [isRegister, setIsRegister] = useState(false)
   const [email, setEmail] = useState('')
   const [username, setUsername] = useState('')
@@ -29,9 +32,11 @@ export default function Home() {
         return
       }
 
-      // TODO: Store user session/token
+      // Store user in localStorage
+      setUser(data.user)
       console.log('Logged in:', data.user)
-      // Redirect or update UI
+      // Redirect to map page
+      router.push('/map')
     } catch (err) {
       setError('An error occurred')
     } finally {
