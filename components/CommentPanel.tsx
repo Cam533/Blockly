@@ -20,7 +20,7 @@ interface Comment {
     username: string
   }
 }
-
+ 
 interface CommentPanelProps {
   plot: Plot
   comments: Comment[]
@@ -42,35 +42,15 @@ export default function CommentPanel({
   const [localComments, setLocalComments] = useState<Comment[]>(comments)
   const [summary, setSummary] = useState<string | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
+  const [summaryError, setSummaryError] = useState<string>('')
+  const [summaryData, setSummaryData] = useState<any>(null)
+  const [showSummary, setShowSummary] = useState(false)
+
+  const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
 
   useEffect(() => {
     setLocalComments(comments)
   }, [comments])
-
-  useEffect(() => {
-    // Fetch summary when plot changes or comments change
-    const fetchSummary = async () => {
-      if (comments.length === 0) {
-        setSummary(null)
-        return
-      }
-
-      setSummaryLoading(true)
-      try {
-        const response = await fetch(`/api/comments/summary?plotId=${plot.id}`)
-        if (response.ok) {
-          const data = await response.json()
-          setSummary(data.summary)
-        }
-      } catch (err) {
-        console.error('Error fetching summary:', err)
-      } finally {
-        setSummaryLoading(false)
-      }
-    }
-
-    fetchSummary()
-  }, [plot.id, comments.length])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -140,6 +120,94 @@ export default function CommentPanel({
     })
   }
 
+  const fetchSummary = async () => {
+    setSummaryLoading(true)
+    setSummaryError('')
+    setSummaryData(null)
+
+    try {
+      // Fetch latest comments for this plot from the backend so we send ALL comments
+      let allComments: Comment[] = comments
+      try {
+        const commentsRes = await fetch(`/api/comments?plotId=${plot.id}`)
+        if (commentsRes.ok) {
+          const json = await commentsRes.json()
+          // Expect an array of comments; if successful, use that
+          if (Array.isArray(json)) {
+            allComments = json
+          }
+        }
+      } catch (err) {
+        // If this fails, fall back to the provided `comments` prop
+        console.warn('Failed to fetch latest comments, falling back to local prop', err)
+      }
+
+      // Build a lightweight payload for the summary endpoint from the freshest comments
+      const payload = {
+        plot_id: plot.id,
+        comments_count: allComments.length,
+        comments: allComments.map((c: any) => ({ id: c.id, content: c.content, username: c.user?.username || c.username })),
+      }
+
+      // Check local cache first to avoid frequent LLM calls
+      try {
+        const key = `plot_summary_${plot.id}`
+        const raw = localStorage.getItem(key)
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          if (
+            parsed &&
+            parsed.comments_count === payload.comments_count &&
+            Date.now() - (parsed.fetchedAt || 0) < CACHE_TTL
+          ) {
+            // Use cached data
+            setSummaryData(parsed.data)
+            setSummaryLoading(false)
+            return
+          }
+        }
+      } catch (err) {
+        // Ignore cache errors (e.g., JSON parse issues) and continue to fetch
+        console.warn('Summary cache check failed', err)
+      }
+
+      const res = await fetch('/api/comments/summary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data?.error || 'Summary request failed')
+      }
+
+      // Normalize common response shapes
+      const normalized: any = {
+        summary: data.summary || data.summaryText || data.description || undefined,
+        recommendations: data.recommendations || data.recs || [],
+        representativeComments: data.representativeComments || data.representative_comments || data.topComments || [],
+        _debug: data._debug || data.debug || null,
+      }
+
+      // Persist to cache for subsequent requests
+      try {
+        const key = `plot_summary_${plot.id}`
+        const payloadToStore = { fetchedAt: Date.now(), comments_count: payload.comments_count, data: normalized }
+        localStorage.setItem(key, JSON.stringify(payloadToStore))
+      } catch (err) {
+        console.warn('Failed to write summary cache', err)
+      }
+
+      setSummaryData(normalized)
+    } catch (err: any) {
+      console.error('Summary fetch error', err)
+      setSummaryError(err?.message || 'Failed to fetch summary')
+    } finally {
+      setSummaryLoading(false)
+    }
+  }
+
   return (
     <div className="absolute top-4 right-4 w-96 bg-white shadow-2xl rounded-xl z-[1000] max-h-[calc(100vh-120px)] flex flex-col border border-gray-100">
       <div className="p-5 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
@@ -174,6 +242,71 @@ export default function CommentPanel({
       </div>
 
       <div className="flex-1 overflow-y-auto p-5 bg-gray-50">
+        {/* Summary modal */}
+        {showSummary && (
+          <div style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.4)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1100
+          }} onClick={() => setShowSummary(false)}>
+            <div style={{ width: '640px', maxHeight: '80vh', overflowY: 'auto', background: '#fff', borderRadius: '8px', padding: '16px' }} onClick={(e) => e.stopPropagation()}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h3 style={{ margin: 0 }}>Plot Summary</h3>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button onClick={() => { setShowSummary(false) }} style={{ border: 'none', background: 'none', fontSize: '20px', cursor: 'pointer' }}>×</button>
+                </div>
+              </div>
+
+              {summaryLoading ? (
+                <p>Loading summary…</p>
+              ) : summaryError ? (
+                <p style={{ color: '#ef4444' }}>{summaryError}</p>
+              ) : summaryData ? (
+                <div>
+                  {summaryData.summary && <p style={{ marginBottom: '12px' }}>{summaryData.summary}</p>}
+
+                  {summaryData.recommendations && summaryData.recommendations.length > 0 && (
+                    <div style={{ marginBottom: '12px' }}>
+                      <h4 style={{ margin: '8px 0' }}>Recommendations</h4>
+                      <ul>
+                        {summaryData.recommendations.map((r: string, idx: number) => (
+                          <li key={idx} style={{ marginBottom: '6px' }}>{r}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {summaryData.representativeComments && summaryData.representativeComments.length > 0 && (
+                    <div>
+                      <h4 style={{ margin: '8px 0' }}>Representative Comments</h4>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {summaryData.representativeComments.map((c: string, idx: number) => (
+                          <div key={idx} style={{ padding: '8px', border: '1px solid #e5e7eb', borderRadius: '6px' }}>{c}</div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Debug info if present */}
+                  {summaryData._debug && (
+                    <details style={{ marginTop: '12px', fontSize: '12px', color: '#6b7280' }}>
+                      <summary>Debug info</summary>
+                      <pre style={{ whiteSpace: 'pre-wrap' }}>{JSON.stringify(summaryData._debug, null, 2)}</pre>
+                    </details>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <p>No summary yet.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
           <span>Comments</span>
           <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
