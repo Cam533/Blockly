@@ -15,7 +15,7 @@
     "clear:plots": "tsx scripts/clear-plots.ts"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.24.0",
+    "@anthropic-ai/sdk": "^0.24.3",
     "@prisma/client": "^5.19.0",
     "leaflet": "^1.9.4",
     "next": "14.2.0",
@@ -36,4 +36,3 @@
     "typescript": "^5"
   }
 }
-
