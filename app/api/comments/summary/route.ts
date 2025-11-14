@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
         ],
     })
 
-    modelOutput = res.content?.[0]?.text ?? ""
+    modelOutput = res.content?.[0]?.type ?? ""
     } catch (err) {
     console.error("LLM call failed:", err)
     llmCalled = false
