@@ -32,16 +32,30 @@ export default function MapPage() {
   }
 
   return (
-    <main style={{ height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      <div style={{ padding: '1rem', backgroundColor: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Blockly - Philadelphia Vacant Land</h1>
+    <main className="h-screen flex flex-col overflow-hidden bg-gray-50">
+      <div className="px-6 py-4 bg-white shadow-md border-b border-gray-200 flex justify-between items-center flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg flex items-center justify-center">
+            <span className="text-white font-bold text-lg">B</span>
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Blockly</h1>
+            <p className="text-xs text-gray-500">Philadelphia Vacant Land</p>
+          </div>
+        </div>
         {user && (
-          <div style={{ fontSize: '0.875rem' }}>
-            Logged in as: <span style={{ fontWeight: '600' }}>{user.username}</span>
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <p className="text-xs text-gray-500">Logged in as</p>
+              <p className="text-sm font-semibold text-gray-900">{user.username}</p>
+            </div>
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-full flex items-center justify-center">
+              <span className="text-white text-xs font-semibold">{user.username.charAt(0).toUpperCase()}</span>
+            </div>
           </div>
         )}
       </div>
-      <div style={{ flex: 1, position: 'relative', height: '100%' }}>
+      <div className="flex-1 relative">
         <MapComponent user={user!} />
       </div>
     </main>

@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  body {
+    @apply antialiased;
+  }
+}
+
 /* Fix Leaflet icon display issues */
 .leaflet-container {
   font-family: inherit;
