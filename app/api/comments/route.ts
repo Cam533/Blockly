@@ -4,7 +4,7 @@ import { anthropic } from '@/lib/anthropic'
 
 export async function POST(request: NextRequest) {
   try {
-    const { plotId, userId, content } = await request.json()
+    const { plotId, userId, content, upvote, downvote } = await request.json()
 
     // Generate embedding using Claude API
     const embedding = await generateEmbedding(content)
@@ -47,7 +47,12 @@ export async function GET(request: NextRequest) {
       where: {
         plotId: parseInt(plotId),
       },
-      include: {
+      select: {
+        id: true,
+        content: true,
+        createdAt: true,
+        upvote: true,
+        downvote: true,
         user: {
           select: {
             id: true,
@@ -55,9 +60,17 @@ export async function GET(request: NextRequest) {
           },
         },
       },
-      orderBy: {
-        createdAt: 'desc',
-      },
+    })
+
+    // Sort by score (upvote - downvote) descending, then by createdAt if scores are equal
+    comments.sort((a, b) => {
+      const scoreA = a.upvote - a.downvote
+      const scoreB = b.upvote - b.downvote
+      if (scoreA !== scoreB) {
+        return scoreB - scoreA // Higher score first
+      }
+      // If scores are equal, sort by newest first
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     })
 
     return NextResponse.json(comments)

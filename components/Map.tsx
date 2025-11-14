@@ -30,6 +30,8 @@ interface Comment {
   id: number
   content: string
   createdAt: string
+  upvote: number
+  downvote: number
   user: {
     id: number
     username: string
@@ -75,7 +77,11 @@ export default function Map({ user }: { user: User }) {
     try {
       const response = await fetch(`/api/comments?plotId=${plotId}`)
       const data = await response.json()
-      setComments(data)
+      setComments(data.map((c: any) => ({
+        ...c,
+        upvote: c.upvote || 0,
+        downvote: c.downvote || 0,
+      })))
     } catch (error) {
       console.error('Error fetching comments:', error)
     }
@@ -133,11 +139,12 @@ export default function Map({ user }: { user: User }) {
           
           // Color based on vacant rank (red = high, yellow = medium, green = low)
           const getColor = (rank: number | null) => {
-            if (!rank) return '#3388ff'
-            if (rank >= 0.7) return '#ff0000'
-            if (rank >= 0.4) return '#ffaa00'
-            return '#00ff00'
-          }
+            if (rank == null) return '#3388ff';
+          
+            const t = Math.max(0, Math.min(1, rank));
+            const hue = 120 * (1 - t); // 120 → 0
+            return `hsl(${hue}, 100%, 50%)`;
+          };
 
           return (
             <CircleMarker

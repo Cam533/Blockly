@@ -75,55 +75,65 @@ export default function Home() {
   }
 
   return (
-    <main className="flex items-center justify-center min-h-screen">
-      <div className="w-full max-w-md p-8">
-        <h1 className="text-3xl font-bold mb-6">Blockly</h1>
-        <form onSubmit={isRegister ? handleRegister : handleLogin} className="space-y-4">
+    <main className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="w-full max-w-md p-8 bg-white rounded-2xl shadow-xl">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">Blockly</h1>
+          <p className="text-gray-600">Philadelphia Vacant Land Platform</p>
+        </div>
+        <form onSubmit={isRegister ? handleRegister : handleLogin} className="space-y-5">
           {isRegister && (
             <div>
-              <label htmlFor="username" className="block mb-2">Username</label>
+              <label htmlFor="username" className="block mb-2 text-sm font-medium text-gray-700">Username</label>
               <input
                 id="username"
                 type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
-                className="w-full px-4 py-2 border rounded"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+                placeholder="Enter your username"
               />
             </div>
           )}
           <div>
-            <label htmlFor="email" className="block mb-2">Email</label>
+            <label htmlFor="email" className="block mb-2 text-sm font-medium text-gray-700">Email</label>
             <input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-2 border rounded"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              placeholder="Enter your email"
             />
           </div>
           <div>
-            <label htmlFor="password" className="block mb-2">Password</label>
+            <label htmlFor="password" className="block mb-2 text-sm font-medium text-gray-700">Password</label>
             <input
               id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="w-full px-4 py-2 border rounded"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none"
+              placeholder="Enter your password"
             />
           </div>
-          {error && <p className="text-red-500 text-sm">{error}</p>}
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-600 text-sm">{error}</p>
+            </div>
+          )}
           <button
             type="submit"
             disabled={loading}
-            className="w-full px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+            className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
           >
-            {loading ? (isRegister ? 'Registering...' : 'Logging in...') : (isRegister ? 'Register' : 'Login')}
+            {loading ? (isRegister ? 'Registering...' : 'Logging in...') : (isRegister ? 'Create Account' : 'Sign In')}
           </button>
         </form>
-        <div className="mt-4 text-center">
+        <div className="mt-6 text-center">
           <button
             onClick={() => {
               setIsRegister(!isRegister)
@@ -132,9 +142,9 @@ export default function Home() {
               setUsername('')
               setPassword('')
             }}
-            className="text-blue-500 hover:underline"
+            className="text-blue-600 hover:text-blue-700 font-medium transition-colors"
           >
-            {isRegister ? 'Already have an account? Login' : "Don't have an account? Register"}
+            {isRegister ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
           </button>
         </div>
       </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { User } from '@/lib/auth'
 
 interface Plot {
@@ -13,6 +13,8 @@ interface Comment {
   id: number
   content: string
   createdAt: string
+  upvote: number
+  downvote: number
   user: {
     id: number
     username: string
@@ -37,6 +39,11 @@ export default function CommentPanel({
   const [commentText, setCommentText] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [localComments, setLocalComments] = useState<Comment[]>(comments)
+
+  useEffect(() => {
+    setLocalComments(comments)
+  }, [comments])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -53,6 +60,8 @@ export default function CommentPanel({
           plotId: plot.id,
           userId: user.id,
           content: commentText.trim(),
+          upvote: 0,
+          downvote: 0,
         }),
       })
 
@@ -69,6 +78,31 @@ export default function CommentPanel({
     }
   }
 
+  const handleVote = async (commentId: number, voteType: 'upvote' | 'downvote') => {
+    try {
+      const response = await fetch(`/api/comments/${commentId}/vote`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voteType }),
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to vote')
+      }
+
+      const updatedComment = await response.json()
+      
+      // Update local comments state
+      setLocalComments(prevComments =>
+        prevComments.map(comment =>
+          comment.id === commentId ? updatedComment : comment
+        )
+      )
+    } catch (err) {
+      console.error('Error voting:', err)
+    }
+  }
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -80,111 +114,97 @@ export default function CommentPanel({
   }
 
   return (
-    <div style={{
-      position: 'absolute',
-      top: '16px',
-      right: '16px',
-      width: '384px',
-      backgroundColor: 'white',
-      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-      borderRadius: '8px',
-      zIndex: 1000,
-      maxHeight: 'calc(100vh - 120px)',
-      display: 'flex',
-      flexDirection: 'column'
-    }}>
-      <div style={{ padding: '16px', borderBottom: '1px solid #e5e7eb' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+    <div className="absolute top-4 right-4 w-96 bg-white shadow-2xl rounded-xl z-[1000] max-h-[calc(100vh-120px)] flex flex-col border border-gray-100">
+      <div className="p-5 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+        <div className="flex justify-between items-start">
           <div>
-            <h2 style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '4px' }}>Plot Details</h2>
-            <p style={{ fontSize: '14px', color: '#4b5563', marginBottom: '4px' }}>{plot.address || 'No address'}</p>
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Plot Details</h2>
+            <p className="text-sm text-gray-700 mb-1 font-medium">{plot.address || 'No address'}</p>
             {plot.vacantFlag && (
-              <p style={{ fontSize: '12px', color: '#6b7280' }}>Status: {plot.vacantFlag}</p>
+              <span className="inline-block px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                {plot.vacantFlag}
+              </span>
             )}
           </div>
           <button
             onClick={onClose}
-            style={{
-              fontSize: '24px',
-              color: '#9ca3af',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer',
-              padding: '0',
-              lineHeight: '1'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.color = '#4b5563'}
-            onMouseOut={(e) => e.currentTarget.style.color = '#9ca3af'}
+            className="text-gray-400 hover:text-gray-600 text-2xl leading-none transition-colors w-6 h-6 flex items-center justify-center rounded hover:bg-gray-100"
           >
             ×
           </button>
         </div>
       </div>
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-        <h3 style={{ fontWeight: '600', marginBottom: '12px' }}>Comments ({comments.length})</h3>
-        {comments.length === 0 ? (
-          <p style={{ fontSize: '14px', color: '#6b7280' }}>No comments yet. Be the first to comment!</p>
+      <div className="flex-1 overflow-y-auto p-5 bg-gray-50">
+        <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+          <span>Comments</span>
+          <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-700 rounded-full">
+            {localComments.length}
+          </span>
+        </h3>
+        {localComments.length === 0 ? (
+          <div className="text-center py-8">
+            <p className="text-sm text-gray-500 mb-1">No comments yet.</p>
+            <p className="text-xs text-gray-400">Be the first to comment!</p>
+          </div>
         ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {comments.map((comment) => (
-              <div key={comment.id} style={{ borderBottom: '1px solid #e5e7eb', paddingBottom: '12px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
-                  <span style={{ fontWeight: '600', fontSize: '14px' }}>{comment.user.username}</span>
-                  <span style={{ fontSize: '12px', color: '#6b7280' }}>
+          <div className="space-y-4">
+            {localComments.map((comment) => (
+              <div key={comment.id} className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-full flex items-center justify-center">
+                      <span className="text-white text-xs font-semibold">{comment.user.username.charAt(0).toUpperCase()}</span>
+                    </div>
+                    <span className="font-semibold text-sm text-gray-900">{comment.user.username}</span>
+                  </div>
+                  <span className="text-xs text-gray-500">
                     {formatDate(comment.createdAt)}
                   </span>
                 </div>
-                <p style={{ fontSize: '14px', color: '#374151' }}>{comment.content}</p>
+                <p className="text-sm text-gray-700 mb-3 leading-relaxed">{comment.content}</p>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => handleVote(comment.id, 'upvote')}
+                    className="flex items-center justify-center w-8 h-8 bg-gray-100 hover:bg-green-100 border border-gray-200 hover:border-green-300 rounded-lg cursor-pointer transition-all hover:scale-110"
+                  >
+                    <span className="text-green-600 text-sm">▲</span>
+                  </button>
+                  <span className="text-sm font-semibold text-gray-900 min-w-[30px] text-center">
+                    {comment.upvote - comment.downvote}
+                  </span>
+                  <button
+                    onClick={() => handleVote(comment.id, 'downvote')}
+                    className="flex items-center justify-center w-8 h-8 bg-gray-100 hover:bg-red-100 border border-gray-200 hover:border-red-300 rounded-lg cursor-pointer transition-all hover:scale-110"
+                  >
+                    <span className="text-red-600 text-sm">▼</span>
+                  </button>
+                </div>
               </div>
             ))}
           </div>
         )}
       </div>
 
-      <div style={{ padding: '16px', borderTop: '1px solid #e5e7eb' }}>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {error && <p style={{ fontSize: '14px', color: '#ef4444' }}>{error}</p>}
+      <div className="p-5 border-t border-gray-200 bg-white">
+        <form onSubmit={handleSubmit} className="space-y-3">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
           <textarea
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
             placeholder="Add a comment..."
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              border: '1px solid #d1d5db',
-              borderRadius: '4px',
-              fontSize: '14px',
-              resize: 'none',
-              fontFamily: 'inherit'
-            }}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none resize-none text-sm"
             rows={3}
             required
           />
           <button
             type="submit"
             disabled={loading || !commentText.trim()}
-            style={{
-              width: '100%',
-              padding: '8px 16px',
-              backgroundColor: loading || !commentText.trim() ? '#9ca3af' : '#3b82f6',
-              color: 'white',
-              borderRadius: '4px',
-              border: 'none',
-              cursor: loading || !commentText.trim() ? 'not-allowed' : 'pointer',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}
-            onMouseOver={(e) => {
-              if (!loading && commentText.trim()) {
-                e.currentTarget.style.backgroundColor = '#2563eb'
-              }
-            }}
-            onMouseOut={(e) => {
-              if (!loading && commentText.trim()) {
-                e.currentTarget.style.backgroundColor = '#3b82f6'
-              }
-            }}
+            className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md hover:shadow-lg disabled:hover:shadow-md transform hover:-translate-y-0.5 disabled:hover:translate-y-0"
           >
             {loading ? 'Posting...' : 'Post Comment'}
           </button>
